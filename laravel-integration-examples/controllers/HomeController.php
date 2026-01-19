@@ -22,24 +22,19 @@ class HomeController extends Controller
      */
     public function index(): Response
     {
-        // Fetch top 6 universities ordered by rating
-        $universities = University::with(['images', 'colleges.majors'])
-            ->where('is_active', true)
-            ->orderBy('rating', 'desc')
+        // Fetch top 6 universities ordered by star rating
+        $universities = University::with(['images', 'universityMajors.major.college'])
+            ->where('status', 'active')
             ->limit(6)
             ->get()
             ->map(function ($university) {
                 return [
-                    'id' => $university->id,
-                    'name' => $university->name_en,
-                    'nameAr' => $university->name_ar,
+                    'id' => $university->public_id,
+                    'name' => $university->name,
                     'location' => $university->location,
-                    'locationAr' => $university->location_ar ?? $university->location,
-                    'rating' => $university->rating,
-                    'fees' => $university->fees,
-                    'image' => $university->images->first()?->url ?? '/images/default-university.png',
-                    'description' => $university->description_en,
-                    'descriptionAr' => $university->description_ar,
+                    'rating' => $university->averageStarSum() ?? 0, // Using Star package
+                    'image' => $university->avatar_url ?? '/images/default-university.png',
+                    'description' => $university->description,
                 ];
             });
 
@@ -50,13 +45,11 @@ class HomeController extends Controller
             ->get()
             ->map(function ($post) {
                 return [
-                    'id' => $post->id,
+                    'id' => $post->public_id,
                     'title' => $post->title,
-                    'titleAr' => $post->title_ar ?? $post->title,
-                    'image' => $post->image ?? '/images/default-article.png',
-                    'universityId' => $post->university_id,
-                    'universityName' => $post->university->name_en ?? '',
-                    'universityNameAr' => $post->university->name_ar ?? '',
+                    'image' => '/images/default-article.png', // No image field in model
+                    'universityId' => $post->university->public_id ?? null,
+                    'universityName' => $post->university->name ?? '',
                     'date' => $post->created_at->toISOString(),
                     'content' => $post->content,
                 ];

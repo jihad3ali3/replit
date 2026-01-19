@@ -24,17 +24,18 @@ class ArticleController extends Controller
     {
         $query = UniversityPost::with(['university']);
 
-        // Filter by university
+        // Filter by university (using public_id)
         if ($request->filled('university')) {
-            $query->where('university_id', $request->university);
+            $query->whereHas('university', function ($q) use ($request) {
+                $q->where('public_id', $request->university);
+            });
         }
 
-        // Search in title
+        // Search in title and content
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('title', 'like', "%{$search}%")
-                  ->orWhere('title_ar', 'like', "%{$search}%")
                   ->orWhere('content', 'like', "%{$search}%");
             });
         }
@@ -42,7 +43,7 @@ class ArticleController extends Controller
         // Sort by date or likes
         $sortBy = $request->get('sort', 'date');
         if ($sortBy === 'likes') {
-            $query->orderBy('likes_count', 'desc');
+            $query->withCount('likes')->orderBy('likes_count', 'desc');
         } else {
             $query->latest();
         }
@@ -50,13 +51,11 @@ class ArticleController extends Controller
         // Paginate results
         $articles = $query->paginate(12)->through(function ($post) {
             return [
-                'id' => $post->id,
+                'id' => $post->public_id,
                 'title' => $post->title,
-                'titleAr' => $post->title_ar ?? $post->title,
-                'image' => $post->image ?? '/images/default-article.png',
-                'universityId' => $post->university_id,
-                'universityName' => $post->university->name_en ?? '',
-                'universityNameAr' => $post->university->name_ar ?? '',
+                'image' => '/images/default-article.png',
+                'universityId' => $post->university->public_id ?? null,
+                'universityName' => $post->university->name ?? '',
                 'date' => $post->created_at->toISOString(),
                 'publishDate' => $post->created_at->format('Y-m-d'),
                 'likesCount' => $post->likes_count ?? 0,
@@ -78,17 +77,16 @@ class ArticleController extends Controller
     public function show(UniversityPost $article): Response
     {
         $article->load(['university']);
+        $article->loadCount('likes');
 
         return Inertia::render('ArticleDetail', [
             'article' => [
-                'id' => $article->id,
+                'id' => $article->public_id,
                 'title' => $article->title,
-                'titleAr' => $article->title_ar ?? $article->title,
                 'content' => $article->content,
-                'image' => $article->image,
-                'universityId' => $article->university_id,
-                'universityName' => $article->university->name_en ?? '',
-                'universityNameAr' => $article->university->name_ar ?? '',
+                'image' => '/images/default-article.png',
+                'universityId' => $article->university->public_id ?? null,
+                'universityName' => $article->university->name ?? '',
                 'date' => $article->created_at->toISOString(),
                 'likesCount' => $article->likes_count ?? 0,
             ],
@@ -104,8 +102,16 @@ class ArticleController extends Controller
      */
     public function like(Request $request, UniversityPost $article)
     {
-        // Implement like logic here
-        // For example, toggle like for the authenticated user
+        $user = auth()->user();
+        
+        if ($user) {
+            // Toggle like
+            if ($article->likes()->where('user_id', $user->id)->exists()) {
+                $article->likes()->detach($user->id);
+            } else {
+                $article->likes()->attach($user->id);
+            }
+        }
         
         return back()->with('message', 'Article liked!');
     }

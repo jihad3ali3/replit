@@ -23,16 +23,16 @@ class UniversityController extends Controller
      */
     public function index(Request $request): Response
     {
-        $query = University::with(['images', 'colleges'])
-            ->where('is_active', true);
+        $query = University::with(['images', 'universityMajors'])
+            ->where('status', 'active');
 
         // Search functionality
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
-                $q->where('name_en', 'like', "%{$search}%")
-                  ->orWhere('name_ar', 'like', "%{$search}%")
-                  ->orWhere('location', 'like', "%{$search}%");
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('location', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%");
             });
         }
 
@@ -41,53 +41,43 @@ class UniversityController extends Controller
             $query->where('location', 'like', "%{$request->location}%");
         }
 
-        // Filter by minimum rating
-        if ($request->filled('minRating')) {
-            $query->where('rating', '>=', $request->minRating);
-        }
-
-        // Filter by maximum fees
+        // Filter by minimum tuition fee (from university majors)
         if ($request->filled('maxFees')) {
-            $query->where('fees', '<=', $request->maxFees);
+            $query->whereHas('universityMajors', function ($q) use ($request) {
+                $q->where('tuition_fee', '<=', $request->maxFees);
+            });
         }
 
         // Sorting
-        $sortBy = $request->get('sort', 'rating');
-        $sortDirection = $request->get('direction', 'desc');
+        $sortBy = $request->get('sort', 'name');
+        $sortDirection = $request->get('direction', 'asc');
         
         switch ($sortBy) {
-            case 'rating':
-                $query->orderBy('rating', $sortDirection);
-                break;
-            case 'fees':
-                $query->orderBy('fees', $sortDirection === 'desc' ? 'desc' : 'asc');
-                break;
             case 'name':
-                $query->orderBy('name_en', $sortDirection);
+                $query->orderBy('name', $sortDirection);
                 break;
             default:
-                $query->orderBy('rating', 'desc');
+                $query->orderBy('name', 'asc');
         }
 
         // Paginate results
         $universities = $query->paginate(12)->through(function ($university) {
+            $minFee = $university->universityMajors->min('tuition_fee') ?? 0;
+            
             return [
-                'id' => $university->id,
-                'name' => $university->name_en,
-                'nameAr' => $university->name_ar,
+                'id' => $university->public_id,
+                'name' => $university->name,
                 'location' => $university->location,
-                'locationAr' => $university->location_ar ?? $university->location,
-                'rating' => $university->rating,
-                'fees' => $university->fees,
-                'image' => $university->images->first()?->url ?? '/images/default-university.png',
-                'description' => $university->description_en,
-                'descriptionAr' => $university->description_ar,
+                'rating' => $university->averageStarSum() ?? 0,
+                'fees' => $minFee,
+                'image' => $university->avatar_url ?? '/images/default-university.png',
+                'description' => $university->description,
             ];
         });
 
         return Inertia::render('Universities', [
             'universities' => $universities,
-            'filters' => $request->only(['search', 'location', 'minRating', 'maxFees', 'sort', 'direction']),
+            'filters' => $request->only(['search', 'location', 'maxFees', 'sort', 'direction']),
         ]);
     }
 
@@ -102,52 +92,54 @@ class UniversityController extends Controller
         // Load all related data
         $university->load([
             'images',
-            'colleges.majors' => function ($query) {
-                $query->withPivot(['fees', 'required_gpa', 'study_years']);
-            },
-            'posts' => function ($query) {
+            'universityMajors.major.college',
+            'universityPosts' => function ($query) {
                 $query->latest()->limit(5);
             }
         ]);
 
+        // Group majors by college
+        $collegesWithMajors = [];
+        foreach ($university->universityMajors as $univMajor) {
+            if (!$univMajor->major || !$univMajor->major->college) continue;
+            
+            $college = $univMajor->major->college;
+            $collegeId = $college->public_id;
+            
+            if (!isset($collegesWithMajors[$collegeId])) {
+                $collegesWithMajors[$collegeId] = [
+                    'id' => $college->public_id,
+                    'name' => $college->name,
+                    'image' => '/storage/' . $college->image_path,
+                    'majors' => []
+                ];
+            }
+            
+            $collegesWithMajors[$collegeId]['majors'][] = [
+                'id' => $univMajor->major->public_id,
+                'name' => $univMajor->major->name,
+                'description' => $univMajor->major->description,
+                'years' => $univMajor->study_years,
+                'fees' => $univMajor->tuition_fee,
+                'seats' => $univMajor->number_of_seats,
+                'admissionRate' => $univMajor->admission_rate,
+            ];
+        }
+
         // Format university data
         $universityData = [
-            'id' => $university->id,
-            'name' => $university->name_en,
-            'nameAr' => $university->name_ar,
+            'id' => $university->public_id,
+            'name' => $university->name,
             'location' => $university->location,
-            'locationAr' => $university->location_ar ?? $university->location,
-            'rating' => $university->rating,
-            'fees' => $university->fees,
-            'description' => $university->description_en,
-            'descriptionAr' => $university->description_ar,
-            'images' => $university->images->map(fn($img) => $img->url),
-            'colleges' => $university->colleges->map(function ($college) {
+            'rating' => $university->averageStarSum() ?? 0,
+            'description' => $university->description,
+            'images' => $university->images->map(fn($img) => '/storage/' . $img->image_path),
+            'colleges' => array_values($collegesWithMajors),
+            'articles' => $university->universityPosts->map(function ($post) {
                 return [
-                    'id' => $college->id,
-                    'name' => $college->name_en,
-                    'nameAr' => $college->name_ar,
-                    'image' => $college->image,
-                    'majors' => $college->majors->map(function ($major) {
-                        return [
-                            'id' => $major->id,
-                            'name' => $major->name_en,
-                            'nameAr' => $major->name_ar,
-                            'description' => $major->description_en,
-                            'descriptionAr' => $major->description_ar,
-                            'years' => $major->pivot->study_years ?? 4,
-                            'fees' => $major->pivot->fees ?? 0,
-                            'gpa' => $major->pivot->required_gpa ?? 0,
-                        ];
-                    }),
-                ];
-            }),
-            'articles' => $university->posts->map(function ($post) {
-                return [
-                    'id' => $post->id,
+                    'id' => $post->public_id,
                     'title' => $post->title,
-                    'titleAr' => $post->title_ar ?? $post->title,
-                    'image' => $post->image,
+                    'image' => '/images/default-article.png',
                     'date' => $post->created_at->toISOString(),
                     'content' => $post->content,
                 ];
@@ -172,8 +164,11 @@ class UniversityController extends Controller
             'rating' => 'required|numeric|min:1|max:5',
         ]);
 
-        // Here you would implement the rating logic
-        // For example, saving to a ratings table and recalculating average
+        // Using JobMetric\Star package that QueenLastVersion has
+        $user = auth()->user(); // or auth()->guard('web')->user()
+        if ($user) {
+            $university->setStar($user, $request->rating);
+        }
         
         return back()->with('message', 'Rating submitted successfully!');
     }

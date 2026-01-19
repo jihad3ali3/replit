@@ -4,11 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\Application;
 use App\Models\University;
-use App\Models\Major;
+use App\Models\UniversityMajor;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 
 /**
  * ApplicationController - Handles university applications
@@ -29,25 +30,36 @@ class ApplicationController extends Controller
         $universityData = null;
         
         if ($university) {
-            $university->load(['colleges.majors']);
-            $universityData = [
-                'id' => $university->id,
-                'name' => $university->name_en,
-                'nameAr' => $university->name_ar,
-                'colleges' => $university->colleges->map(function ($college) {
-                    return [
-                        'id' => $college->id,
-                        'name' => $college->name_en,
-                        'nameAr' => $college->name_ar,
-                        'majors' => $college->majors->map(function ($major) {
-                            return [
-                                'id' => $major->id,
-                                'name' => $major->name_en,
-                                'nameAr' => $major->name_ar,
-                            ];
-                        }),
+            $university->load(['universityMajors.major.college']);
+            
+            // Group majors by college
+            $collegesWithMajors = [];
+            foreach ($university->universityMajors as $univMajor) {
+                if (!$univMajor->major || !$univMajor->major->college || !$univMajor->published) continue;
+                
+                $college = $univMajor->major->college;
+                $collegeId = $college->public_id;
+                
+                if (!isset($collegesWithMajors[$collegeId])) {
+                    $collegesWithMajors[$collegeId] = [
+                        'id' => $college->public_id,
+                        'name' => $college->name,
+                        'majors' => []
                     ];
-                }),
+                }
+                
+                $collegesWithMajors[$collegeId]['majors'][] = [
+                    'id' => $univMajor->public_id, // Use UniversityMajor ID for application
+                    'name' => $univMajor->major->name,
+                    'tuitionFee' => $univMajor->tuition_fee,
+                    'studyYears' => $univMajor->study_years,
+                ];
+            }
+            
+            $universityData = [
+                'id' => $university->public_id,
+                'name' => $university->name,
+                'colleges' => array_values($collegesWithMajors),
             ];
         }
 
@@ -65,40 +77,25 @@ class ApplicationController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'firstName' => 'required|string|max:255',
-            'lastName' => 'required|string|max:255',
-            'email' => 'required|email|max:255',
-            'phoneNumber' => 'nullable|string|max:20',
-            'universityId' => 'required|exists:universities,id',
-            'majorId' => 'required|exists:majors,id',
-            'gpa' => 'required|numeric|min:0|max:4',
-            'certificate' => 'nullable|string',
-            'academicYear' => 'nullable|string',
+            'universityMajorId' => 'required|exists:university_majors,public_id',
+            // Other fields based on your Student model or anonymous applications
         ]);
 
-        // Create or update student record
-        $student = Auth::guard('student')->user();
+        $user = Auth::user(); // or Auth::guard('web')->user()
         
-        if (!$student) {
-            // If not authenticated, you might want to create a guest application
-            // or require authentication
-        }
-
+        // Find the UniversityMajor
+        $universityMajor = UniversityMajor::where('public_id', $validated['universityMajorId'])->firstOrFail();
+        
         // Create application
         $application = Application::create([
-            'student_id' => $student?->id,
-            'university_id' => $validated['universityId'],
-            'major_id' => $validated['majorId'],
-            'first_name' => $validated['firstName'],
-            'last_name' => $validated['lastName'],
-            'email' => $validated['email'],
-            'phone_number' => $validated['phoneNumber'],
-            'gpa' => $validated['gpa'],
-            'certificate' => $validated['certificate'],
-            'academic_year' => $validated['academicYear'],
-            'status' => 'pending',
+            'user_id' => $user?->id,
+            'student_id' => $user?->student?->id ?? null, // If user has student relation
+            'university_major_id' => $universityMajor->id,
+            'application_code' => strtoupper(Str::random(10)),
+            'status' => Application::STATUS_PROCESSING,
+            'is_active' => true,
         ]);
 
-        return redirect()->route('home')->with('message', 'Application submitted successfully!');
+        return redirect()->route('home')->with('message', 'Application submitted successfully! Your application code is: ' . $application->application_code);
     }
 }

@@ -26,18 +26,17 @@ class CollegeController extends Controller
             ->get()
             ->map(function ($college) {
                 return [
-                    'id' => $college->id,
-                    'name' => $college->name_en,
-                    'nameAr' => $college->name_ar,
-                    'image' => $college->image ?? '/images/default-college.png',
+                    'id' => $college->public_id,
+                    'name' => $college->name,
+                    'image' => '/storage/' . $college->image_path,
                     'majors' => $college->majors->map(function ($major) {
                         return [
-                            'id' => $major->id,
-                            'name' => $major->name_en,
-                            'nameAr' => $major->name_ar,
-                            'collegeId' => $major->college_id,
-                            'description' => $major->description_en,
-                            'descriptionAr' => $major->description_ar,
+                            'id' => $major->public_id,
+                            'name' => $major->name,
+                            'collegeId' => $major->college->public_id,
+                            'description' => $major->description,
+                            'designationJobs' => $major->designation_jobs,
+                            'studyYears' => $major->study_years,
                         ];
                     }),
                 ];
@@ -56,36 +55,39 @@ class CollegeController extends Controller
      */
     public function universitiesByMajor(Major $major): Response
     {
-        $universities = $major->universities()
-            ->with(['images'])
-            ->where('is_active', true)
-            ->get()
-            ->map(function ($university) use ($major) {
-                $pivot = $university->pivot;
-                
-                return [
-                    'id' => $university->id,
-                    'name' => $university->name_en,
-                    'nameAr' => $university->name_ar,
-                    'location' => $university->location,
-                    'locationAr' => $university->location_ar ?? $university->location,
-                    'rating' => $university->rating,
-                    'image' => $university->images->first()?->url ?? '/images/default-university.png',
-                    'fees' => $pivot->fees ?? $university->fees,
-                    'requiredGpa' => $pivot->required_gpa ?? 0,
-                    'studyYears' => $pivot->study_years ?? 4,
-                ];
+        // Get universities through UniversityMajor
+        $universityMajors = $major->universityMajors()
+            ->with(['university.images'])
+            ->whereHas('university', function ($q) {
+                $q->where('status', 'active');
             })
-            ->sortBy('fees')
-            ->values();
+            ->where('published', true)
+            ->get();
+
+        $universities = $universityMajors->map(function ($univMajor) {
+            $university = $univMajor->university;
+            
+            return [
+                'id' => $university->public_id,
+                'name' => $university->name,
+                'location' => $university->location,
+                'rating' => $university->averageStarSum() ?? 0,
+                'image' => $university->avatar_url ?? '/images/default-university.png',
+                'fees' => $univMajor->tuition_fee,
+                'admissionRate' => $univMajor->admission_rate,
+                'studyYears' => $univMajor->study_years,
+                'seats' => $univMajor->number_of_seats,
+            ];
+        })
+        ->sortBy('fees')
+        ->values();
 
         return Inertia::render('UniversitiesOfferingMajor', [
             'major' => [
-                'id' => $major->id,
-                'name' => $major->name_en,
-                'nameAr' => $major->name_ar,
-                'description' => $major->description_en,
-                'descriptionAr' => $major->description_ar,
+                'id' => $major->public_id,
+                'name' => $major->name,
+                'description' => $major->description,
+                'designationJobs' => $major->designation_jobs,
             ],
             'universities' => $universities,
         ]);
