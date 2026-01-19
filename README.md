@@ -4,12 +4,16 @@
 [English](#english) | [العربية](#arabic)
 
 > **📘 Integration Guides:**
+> - **⭐ Quick Merge** (10 min): Use QueenLastVersion as base → [Quick Guide](./QUICK_MERGE.md) | [الدليل السريع](./QUICK_MERGE.md)
+> - **Complete Merge Guide**: Detailed merge steps → [Guide](./MERGE_GUIDE.md) | [الدليل](./MERGE_GUIDE.md)
 > - **Laravel Integration**: Connect with Laravel 12 using Inertia.js → [Guide](./LARAVEL_INTEGRATION.md)
-> - **Merge with QueenLastVersion**: Merge this project with the QueenLastVersion backend → [Guide](./MERGE_GUIDE.md)
+> - **Ready Controllers**: Copy-paste Laravel controllers → [Examples](./laravel-integration-examples/)
 >
 > **دلائل الدمج:**
+> - **⭐ دمج سريع** (10 دقائق): استخدام QueenLastVersion كأساس → [الدليل السريع](./QUICK_MERGE.md)
+> - **دليل الدمج الكامل**: خطوات مفصلة للدمج → [الدليل](./MERGE_GUIDE.md)
 > - **دمج Laravel**: ربط المشروع مع Laravel 12 باستخدام Inertia.js → [الدليل](./LARAVEL_INTEGRATION.md)
-> - **دمج مع QueenLastVersion**: دمج هذا المشروع مع مشروع QueenLastVersion → [الدليل](./MERGE_GUIDE.md)
+> - **Controllers جاهزة**: نسخ ولصق Controllers Laravel → [أمثلة](./laravel-integration-examples/)
 
 ---
 
