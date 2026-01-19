@@ -3,6 +3,8 @@
 
 [English](#english) | [العربية](#arabic)
 
+> **📘 Laravel Integration Guide**: Want to connect this project with Laravel 12 using Inertia.js? Check out the [Laravel Integration Guide](./LARAVEL_INTEGRATION.md) | **دليل دمج Laravel**: تريد ربط المشروع مع Laravel 12 باستخدام Inertia.js؟ راجع [دليل دمج Laravel](./LARAVEL_INTEGRATION.md)
+
 ---
 
 ## English
