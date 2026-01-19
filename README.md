@@ -3,7 +3,13 @@
 
 [English](#english) | [العربية](#arabic)
 
-> **📘 Laravel Integration Guide**: Want to connect this project with Laravel 12 using Inertia.js? Check out the [Laravel Integration Guide](./LARAVEL_INTEGRATION.md) | **دليل دمج Laravel**: تريد ربط المشروع مع Laravel 12 باستخدام Inertia.js؟ راجع [دليل دمج Laravel](./LARAVEL_INTEGRATION.md)
+> **📘 Integration Guides:**
+> - **Laravel Integration**: Connect with Laravel 12 using Inertia.js → [Guide](./LARAVEL_INTEGRATION.md)
+> - **Merge with QueenLastVersion**: Merge this project with the QueenLastVersion backend → [Guide](./MERGE_GUIDE.md)
+>
+> **دلائل الدمج:**
+> - **دمج Laravel**: ربط المشروع مع Laravel 12 باستخدام Inertia.js → [الدليل](./LARAVEL_INTEGRATION.md)
+> - **دمج مع QueenLastVersion**: دمج هذا المشروع مع مشروع QueenLastVersion → [الدليل](./MERGE_GUIDE.md)
 
 ---
 
